@@ -16,11 +16,16 @@ export default async function RecordsListPage({
   const view: RecordView = parseRecordView(params.view);
   const user = await getSessionUser();
 
-  // R4.1 — Only the authenticated user's records are queried, in the DB query.
-  const records = await listRecordsForUser(user?.id ?? "", params.view);
-
-  // Quick stats summary
+  // R4.1 — One ownership-scoped query returns all of the user's records (in the
+  // DB query). The URL-state filter and the stat counts are derived in memory so
+  // the page makes a single database call (R4.10) rather than a duplicate one.
   const allUserRecords = await listRecordsForUser(user?.id ?? "", "all");
+  const records =
+    view === "open"
+      ? allUserRecords.filter((r) => r.status === "OPEN")
+      : view === "closed"
+        ? allUserRecords.filter((r) => r.status === "CLOSED")
+        : allUserRecords;
   const openCount = allUserRecords.filter((r) => r.status === "OPEN").length;
   const closedCount = allUserRecords.filter((r) => r.status === "CLOSED").length;
 
