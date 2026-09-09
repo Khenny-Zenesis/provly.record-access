@@ -139,6 +139,8 @@ const exists = await recordExists(publicId);
 return exists ? 403 : 404;
 ```
 
+Captured evidence (actual responses, not just UI): `provly.evidence-4/12-unauth-401-response.txt` (unauthenticated → `401`) and `provly.evidence-4/11-cross-user-403-response.txt` (authenticated as A, requesting B's record → `403`).
+
 **What alternative was rejected.** Collapsing everything into one status (or returning 404 for all failures). Rejected because the assessment explicitly differentiates these and tests both.
 
 ### Opaque / Public Identifiers
@@ -159,6 +161,8 @@ return exists ? 403 : 404;
 
 **How it was implemented.** `AuditLog` has a FK to the actor `User` but **no relation to `Record`**. It stores `recordPublicId` and a `recordTitle` snapshot as plain values. Create and delete write their audit entry inside the same transaction as the data change; for delete, the audit row is written *before* the row is removed.
 
+Captured evidence: the audit rows in `provly.evidence-4/audit-log-proof.txt` show `RECORD_CREATED` then `RECORD_DELETED` for the same publicId — the deleted row persists even though the record no longer appears in the list (screenshot `provly.evidence-4/09-empty-after-delete.png`).
+
 **What alternative was rejected.** A `Record`-FK with `onDelete: SetNull` or `Cascade`. `Cascade` destroys evidence; `SetNull` keeps the row but loses the target identification. Storing the target as a value is what guarantees the evidence stays meaningful after deletion.
 
 ### Database Indexes
@@ -170,13 +174,15 @@ return exists ? 403 : 404;
 - `Record @@index([userId, createdAt(sort: Desc)])` — supports the list `WHERE userId = ? ORDER BY createdAt DESC`.
 - `AuditLog @@index([actorUserId, createdAt(sort: Desc)])` — supports "this actor's trail, newest first."
 
+Live schema/index output is captured in `provly.evidence-4/index-schema.txt` (the `Record_userId_publicId_key` and `Record_userId_createdAt_idx` indexes on `Record`, plus the `AuditLog_actorUserId_createdAt_idx` index on `AuditLog`).
+
 **The cost / trade-off.** Every index costs storage and slows writes (each INSERT/UPDATE/DELETE must maintain the extra structure) and adds memory pressure. That is acceptable here because reads far outnumber writes in this slice. Crucially, the list index is **descending on `createdAt` to match the query's `ORDER BY ... DESC`**, so the query is answered from the index ordering rather than a sort step. No index was added without a query that uses it.
 
 ### Query Counts and Optimisation
 
 **What it is.** Counting the database roundtrips each flow makes, then removing unnecessary ones.
 
-**How it was measured.** I temporarily enabled Prisma `log: ['query']`, restarted the dev server, drove each endpoint once, and counted the `prisma:query` lines emitted for that request. The shipped code has query logging turned off.
+**How it was measured.** I temporarily enabled Prisma `log: ['query']`, restarted the dev server, drove each endpoint once, and counted the `prisma:query` lines emitted for that request. The shipped code has query logging turned off. The measurement is recorded in `provly.evidence-4/query-count-measurement.txt`.
 
 **Results (roundtrips per endpoint):**
 
@@ -200,6 +206,8 @@ return exists ? 403 : 404;
 
 **How it was implemented.** `lib/validation/records.ts` defines the closed set `["all","open","closed"]`. `parseRecordView` accepts only those; anything else is normalised to `all`. The API route (`GET /api/records`) calls `listRecordsForUser(user.id, view)` where `view` is the validated/normalised value — the raw string never reaches Prisma. Tested with `?view=DROP%20TABLE` → `200` with a normalised `all` result, no error and no query hit.
 
+Screenshots: `provly.evidence-4/04-url-state-open.png`, `provly.evidence-4/05-url-state-closed-empty.png`, and `provly.evidence-4/06-invalid-url-state-safe.png` (a garbage `view` value is normalised and the page still renders).
+
 **What alternative was rejected.** Trusting the raw param, or reflecting it back to the user. Rejected because the value is used at the query boundary.
 
 ### Ownership vs. Filtering
@@ -209,6 +217,8 @@ return exists ? 403 : 404;
 **Why it is needed, with a concrete failure case.** If the only "protection" is that the list component filters by the current user, the data is still fully accessible by calling the API directly — the frontend is not a security boundary. The database query itself must enforce ownership so that even a direct call returns only the caller's rows.
 
 **How it was implemented.** The list (`listRecordsForUser`), detail (`getOwnedRecord`) and delete (`deleteRecord`) all put `userId` in the `where` clause. The delete endpoint re-checks ownership server-side even though the UI could try to hide the button (R4.9) — hiding a button is not authorization.
+
+Screenshots: `provly.evidence-4/03-list-after-create.png` (User A's list), `provly.evidence-4/10-userB-list.png` (User B's list — different records), and `provly.evidence-4/11-cross-user-A-accesses-B.png` (A opening B's detail URL gets no data).
 
 **What alternative was rejected.** UI-only filtering, and the classic fetch-then-check pattern.
 
@@ -256,7 +266,7 @@ return exists ? 403 : 404;
 
 **No automated test suite.** Verification was manual: direct database inspection, deliberately driving each endpoint as two different users, replaying URL-state and cross-user cases. There is no re-runnable automated suite; see Section 8.
 
-**Evidence is captured as plain text outputs (HTTP statuses + DB rows), not screenshots.** The capture files are in `provly.evidence-4/` and reference the exact responses and database rows; browser screenshots have to be taken from the running app by the author before submission.
+**Evidence lives in `provly.evidence-4/` and is kept local (gitignored).** It contains browser screenshots of the empty state, create form, list-before/after, URL-state (valid and invalid), record detail, delete confirmation, User A vs User B lists, and the cross-user access attempt — plus text captures of the actual `401`/`403` responses, the audit-log rows (show a `RECORD_DELETED` surviving deletion), the query-count measurement, and the live index/schema output. Because these are evidence artifacts rather than source, they are not committed with the code; they sit beside it for submission.
 
 ---
 
