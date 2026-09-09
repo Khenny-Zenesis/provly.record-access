@@ -1,0 +1,12 @@
+Audit log — `SELECT action, actorUserId, recordPublicId, recordTitle, createdAt FROM "AuditLog" ORDER BY createdAt;`
+
+     action     |        actorUserId        |            recordPublicId            |   recordTitle    |        createdAt
+----------------+---------------------------+--------------------------------------+------------------+-------------------------
+ RECORD_CREATED | cmtud31c0000ev9rs7xy59rbo | 433f4e71-c8f0-40f1-940e-8ac6f7b14db6 | Kitchen refit    | 2026-09-09 17:18:36.512
+ RECORD_DELETED | cmtud31c0000ev9rs7xy59rbo | 433f4e71-c8f0-40f1-940e-8ac6f7b14db6 | Kitchen refit    | 2026-09-09 17:18:45.149
+ RECORD_CREATED | cmtud4gm5000pv9rs0ax3jwbo | 2349ac29-d40e-40b7-978e-e3a6703d254a | Roof replacement | 2026-09-09 17:18:46.643
+
+PROOF the audit survives deletion: the RECORD_DELETED row for publicId 433f4e71 ("Kitchen refit")
+persists even though that record was deleted (it no longer appears in the list — screenshot
+09-empty-after-delete.png). Each entry captures action, actor user id, target record public id,
+a title snapshot, and a timestamp.

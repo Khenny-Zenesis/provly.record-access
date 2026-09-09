@@ -1,0 +1,30 @@
+Query-count measurement method: temporarily enabled Prisma `log: ['query']`, restarted the
+dev server, then drove each endpoint once and read the `prisma:query` lines emitted for
+that request (final code does NOT ship with query logging enabled).
+
+Result (database roundtrips per endpoint, measured against the running app):
+
+  GET  /api/records?view=all        list    3  roundtrips
+  GET  /api/records/:publicId       detail  3  roundtrips
+  POST /api/records                 create  6  roundtrips
+  DELETE /api/records/:publicId     delete  8  roundtrips
+
+Breakdown:
+  - Every protected request costs 2 auth queries: getSessionUser() does a Session lookup
+    (WHERE token=...) then fetches the User (id IN (...)). This is Prisma's cost for a
+    relation `include`; it is constant (2) regardless of how many records a user owns.
+  - list  = 2 auth + 1 record query (WHERE userId=$1 ORDER BY createdAt DESC).
+  - detail= 2 auth + 1 record query (WHERE userId=$1 AND publicId=$2).
+  - create= 2 auth + BEGIN + INSERT Record + INSERT AuditLog + COMMIT (transaction).
+  - delete= 2 auth + 1 existence check + BEGIN + SELECT owned + INSERT AuditLog +
+            DELETE Record + COMMIT.
+
+Why each extra thing is justified:
+  - The transaction (BEGIN/COMMIT) is what makes record+audit atomic: we can never end
+    up with a record that has no audit entry, or an audit entry for a record that was
+    never created. This is the price of R4.4 consistency.
+  - delete's extra existence query (recordExists) is what lets us genuinely return 403
+    ("exists but not yours") distinct from 404 ("does not exist") per R4.3 / PRD Trap 4.
+    It only runs on the failure path, not on a successful delete.
+  - The 2-auth-query overhead is constant and exists in the reused Assessment 1 auth; it
+    is not a function of record count, so it is acceptable for this slice.

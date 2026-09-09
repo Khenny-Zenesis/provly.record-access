@@ -1,0 +1,2 @@
+GET /api/records/2349ac29-d40e-40b7-978e-e3a6703d254a -> 403
+{"error":"You do not have access to this record"}

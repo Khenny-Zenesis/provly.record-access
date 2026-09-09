@@ -1,0 +1,44 @@
+Index / schema evidence (R4.11). Record:
+                                   Table "public.Record"
+  Column   |              Type              | Collation | Nullable |        Default         
+-----------+--------------------------------+-----------+----------+------------------------
+ id        | text                           |           | not null | 
+ publicId  | text                           |           | not null | 
+ title     | text                           |           | not null | 
+ notes     | text                           |           | not null | 
+ status    | "RecordStatus"                 |           | not null | 'OPEN'::"RecordStatus"
+ userId    | text                           |           | not null | 
+ createdAt | timestamp(3) without time zone |           | not null | CURRENT_TIMESTAMP
+ updatedAt | timestamp(3) without time zone |           | not null | 
+Indexes:
+    "Record_pkey" PRIMARY KEY, btree (id)
+    "Record_userId_createdAt_idx" btree ("userId", "createdAt" DESC)
+    "Record_userId_publicId_key" UNIQUE, btree ("userId", "publicId")
+Foreign-key constraints:
+    "Record_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"(id) ON UPDATE CASCADE ON DELETE CASCADE
+
+
+AuditLog:
+                                  Table "public.AuditLog"
+     Column     |              Type              | Collation | Nullable |      Default      
+----------------+--------------------------------+-----------+----------+-------------------
+ id             | text                           |           | not null | 
+ action         | text                           |           | not null | 
+ actorUserId    | text                           |           | not null | 
+ recordPublicId | text                           |           | not null | 
+ recordTitle    | text                           |           |          | 
+ createdAt      | timestamp(3) without time zone |           | not null | CURRENT_TIMESTAMP
+Indexes:
+    "AuditLog_pkey" PRIMARY KEY, btree (id)
+    "AuditLog_actorUserId_createdAt_idx" btree ("actorUserId", "createdAt" DESC)
+Foreign-key constraints:
+    "AuditLog_actorUserId_fkey" FOREIGN KEY ("actorUserId") REFERENCES "User"(id) ON UPDATE CASCADE ON DELETE CASCADE
+
+
+Why each index exists:
+  - "Record_userId_publicId_key" UNIQUE (userId, publicId) — the ownership/access index. The
+    detail + delete path resolves directly by (userId, publicId) in one query; a record can
+    never be addressed without its owner (R4.1/R4.5/R4.9).
+  - "Record_userId_createdAt_idx" (userId, createdAt DESC) — the list query
+    `WHERE userId=$1 ORDER BY createdAt DESC` is answered straight from the index ordering.
+  - AuditLog actorUserId index — "this actor's trail, newest first".

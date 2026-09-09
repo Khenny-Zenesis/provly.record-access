@@ -1,0 +1,31 @@
+Assessment 4 — automated API security test (two users: u_a, u_b)
+
+auth:
+  signup A (201 expect)                      => 201  {"ok":true}
+  signup B (201 expect)                      => 201  {"ok":true}
+  signup A duplicate (409 expect)            => 409  {"error":"Email already registered"}
+anon (no session):
+  anon list records (401)                    => 401  {"error":"Authentication required"}
+  anon detail record (401)                   => 401  {"error":"Authentication required"}
+  anon delete record (401)                   => 401  {"error":"Authentication required"}
+create + server validation:
+  create A (201)                             => 201  {"record":{"publicId":"656aab64-...","title":"Job 1"}}
+  create B (201)                             => 201  {"record":{"publicId":"3753c789-...","title":"Job B1"}}
+  create A invalid title (400)               => 400  {"error":"Invalid record","errors":{"title":"Title is required."}}
+  create A invalid status (400)              => 400  {"error":"Invalid record","errors":{"status":"Status must be OPEN or CLOSED."}}
+ownership (each user sees only their own):
+  A list records                             => 200  [{publicId,title:"Job 1",status:"OPEN"}]
+  B list records                             => 200  [{publicId,title:"Job B1",status:"CLOSED"}]
+cross-user access:
+  B GET A's record (403)                     => 403  {"error":"You do not have access to this record"}
+  A GET B's record (403)                     => 403  {"error":"You do not have access to this record"}
+  B DELETE A's record (403)                  => 403  {"error":"You do not have access to this record"}
+URL-state validation:
+  A list view=open                           => 200  [Job 1]
+  A list view=closed (empty)                 => 200  []
+  A list view=DROP%20TABLE (safe)            => 200  [Job 1]  (value normalised, not injected)
+  A list view=all                            => 200  [Job 1]
+delete authorization (audit survives deletion):
+  B delete own record (204)                  => 204
+  B GET deleted record (404)                 => 404  {"error":"Record not found"}
+  A delete nonexistent (404)                 => 404  {"error":"Record not found"}

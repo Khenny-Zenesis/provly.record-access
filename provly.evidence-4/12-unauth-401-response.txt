@@ -1,0 +1,2 @@
+GET /api/records (no session) -> 401
+{"error":"Authentication required"}

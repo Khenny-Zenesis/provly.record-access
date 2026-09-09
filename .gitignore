@@ -55,3 +55,6 @@ next-env.d.ts
 # Assessment evidence screenshots/logs — kept local, never pushed
 /provly.evidence-3/
 /provly.evidence-*/
+# Exceptions: Assessment 4's evidence (screenshots + response/DB captures)
+# IS published to the repo. Design tokens and the PRD spec remain private above.
+!/provly.evidence-4/
