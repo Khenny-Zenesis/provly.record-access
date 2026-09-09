@@ -27,6 +27,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+.dev.log
+/dev.log
+/dev.err.log
 
 # env files — commit the example, never a real key
 .env
