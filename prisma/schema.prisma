@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RecordStatus {
+  OPEN
+  CLOSED
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions Session[]
+  records  Record[]
+  auditLogs AuditLog[]
+}
+
+// Assessment 1's server-side session. The cookie holds an opaque token; the
+// authoritative record is this row (see lib/auth/session.ts). Reused as-is.
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+// R4.2 — Internal identity is the sequential-safe number id, but user-facing
+// URLs never see it. Access is always scoped to the owning user, so publicId is
+// unique per owner (R4.1/R4.5). The composite unique index IS the ownership
+// access index (R4.11): the detail/delete path resolves directly by
+// (userId, publicId) in a single query without fetching-then-filtering.
+model Record {
+  id        String       @id @default(cuid())
+  publicId  String       @default(uuid())
+  title     String
+  notes     String
+  status    RecordStatus @default(OPEN)
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  // Ownership-scoped access index (R4.1/R4.11): supports
+  //   findFirst({ where: { userId, publicId } })   — detail & delete
+  @@unique([userId, publicId])
+  // List index (R4.11): supports
+  //   findMany({ where: { userId }, orderBy: { createdAt: "desc" } })
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+// R4.4 — Audit log. It has a foreign key to the *actor* User, but deliberately
+// NO relation to Record. The target is stored as a plain string publicId plus a
+// title snapshot so the evidence survives the original record being deleted
+// (PRD Trap 6). No ON DELETE behaviour can remove it because Record is not
+// referenced here.
+model AuditLog {
+  id             String   @id @default(cuid())
+  action         String
+  actorUserId    String
+  actor          User     @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+  recordPublicId String
+  recordTitle    String?
+  createdAt      DateTime @default(now())
+
+  // Audit query: "show me the audit trail for an actor, newest first".
+  @@index([actorUserId, createdAt(sort: Desc)])
+}

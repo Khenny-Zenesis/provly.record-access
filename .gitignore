@@ -1,0 +1,54 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files — commit the example, never a real key
+.env
+.env.*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Provly brand design tokens — proprietary assets, not committed
+/provly-tokens.css
+/provly-tokens.rem.css
+/provly-design-tokens.tokens.json
+
+# Assessment internal spec (PRD data) — not committed
+/Provly PRD 3/
+/provly-PRD 4/
+
+# Assessment evidence screenshots/logs — kept local, never pushed
+/provly.evidence-3/
+/provly.evidence-*/
